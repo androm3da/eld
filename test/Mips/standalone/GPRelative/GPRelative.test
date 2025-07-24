@@ -1,0 +1,59 @@
+#---GPRelative.test----------------------------- Executable -----------------#
+#BEGIN_COMMENT
+# This test verifies MIPS Global Pointer (GP) relative addressing.
+# Tests R_MIPS_GPREL16 and R_MIPS_GPREL32 relocations.
+#END_COMMENT
+#START_TEST
+
+# Create test program using GP-relative addressing
+RUN: %mkdir -p %T/Inputs
+RUN: echo '.section .sdata' > %T/Inputs/gp_test.s
+RUN: echo 'small_data:' >> %T/Inputs/gp_test.s
+RUN: echo '.word 0xabcdef01' >> %T/Inputs/gp_test.s
+RUN: echo '.section .sbss' >> %T/Inputs/gp_test.s
+RUN: echo 'small_bss:' >> %T/Inputs/gp_test.s
+RUN: echo '.space 4' >> %T/Inputs/gp_test.s
+RUN: echo '.section .text' >> %T/Inputs/gp_test.s
+RUN: echo '.globl _start' >> %T/Inputs/gp_test.s
+RUN: echo '_start:' >> %T/Inputs/gp_test.s
+RUN: echo '# GP-relative load from small data section' >> %T/Inputs/gp_test.s
+RUN: echo 'lw $t0, %gp_rel(small_data)($gp)  # R_MIPS_GPREL16' >> %T/Inputs/gp_test.s
+RUN: echo '# GP-relative store to small BSS section' >> %T/Inputs/gp_test.s
+RUN: echo 'sw $t0, %gp_rel(small_bss)($gp)  # R_MIPS_GPREL16' >> %T/Inputs/gp_test.s
+
+# Assemble the test file
+RUN: %clang -target mips -c %T/Inputs/gp_test.s -o %T/gp_test.o
+
+# Verify GP-relative relocations in object file
+RUN: %readelf -r %T/gp_test.o | %filecheck --check-prefix=GP_RELOCS %s
+CHECK-GP_RELOCS: R_MIPS_GPREL16{{.*}}small_data
+CHECK-GP_RELOCS: R_MIPS_GPREL16{{.*}}small_bss
+
+# Link with MIPS linker
+RUN: %link -m elf32btsmip %T/gp_test.o -o %T/gp_test.exe
+
+# Verify small data sections are present
+RUN: %readelf -S %T/gp_test.exe | %filecheck --check-prefix=SECTIONS %s
+CHECK-SECTIONS: .sdata
+CHECK-SECTIONS: .sbss
+
+# Verify GP symbol is defined
+RUN: %readelf -s %T/gp_test.exe | %filecheck --check-prefix=GP_SYMBOL %s
+CHECK-GP_SYMBOL: _gp
+
+# Test GP-relative addressing with linker script
+RUN: echo 'SECTIONS {' > %T/Inputs/gp_script.ld
+RUN: echo '  . = 0x10000000;' >> %T/Inputs/gp_script.ld
+RUN: echo '  .text : { *(.text) }' >> %T/Inputs/gp_script.ld
+RUN: echo '  .sdata : { *(.sdata) }' >> %T/Inputs/gp_script.ld
+RUN: echo '  _gp = . + 0x7ff0;  /* GP base + offset */' >> %T/Inputs/gp_script.ld
+RUN: echo '  .sbss : { *(.sbss) }' >> %T/Inputs/gp_script.ld
+RUN: echo '}' >> %T/Inputs/gp_script.ld
+
+RUN: %link -m elf32btsmip -T %T/Inputs/gp_script.ld %T/gp_test.o -o %T/gp_script.exe
+
+# Verify GP was set correctly
+RUN: %readelf -s %T/gp_script.exe | %filecheck --check-prefix=GP_VALUE %s
+CHECK-GP_VALUE: _gp
+
+#END_TEST

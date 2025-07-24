@@ -1,0 +1,47 @@
+#---Endianness.test----------------------------- Executable -----------------#
+#BEGIN_COMMENT
+# This test verifies MIPS endianness handling (big-endian and little-endian).
+#END_COMMENT
+#START_TEST
+
+# Create test program with data that shows endianness
+RUN: %mkdir -p %T/Inputs
+RUN: echo '.section .data' > %T/Inputs/endian_test.s
+RUN: echo 'test_data:' >> %T/Inputs/endian_test.s
+RUN: echo '.word 0x12345678' >> %T/Inputs/endian_test.s
+RUN: echo '.section .text' >> %T/Inputs/endian_test.s
+RUN: echo '.globl _start' >> %T/Inputs/endian_test.s
+RUN: echo '_start:' >> %T/Inputs/endian_test.s
+RUN: echo 'nop' >> %T/Inputs/endian_test.s
+
+# Test big-endian MIPS
+RUN: %clang -target mips -c %T/Inputs/endian_test.s -o %T/be_test.o
+RUN: %link -m elf32btsmip %T/be_test.o -o %T/be_test.exe
+
+# Verify big-endian ELF header
+RUN: %readelf -h %T/be_test.exe | %filecheck --check-prefix=BE_HEADER %s
+CHECK-BE_HEADER: Data: 2's complement, big endian
+CHECK-BE_HEADER: Machine: MIPS R3000
+
+# Check byte order in data section (big-endian should be 12 34 56 78)
+RUN: %objdump -s -j .data %T/be_test.exe | %filecheck --check-prefix=BE_DATA %s
+CHECK-BE_DATA: 12345678
+
+# Test little-endian MIPS
+RUN: %clang -target mipsel -c %T/Inputs/endian_test.s -o %T/le_test.o
+RUN: %link -m elf32ltsmip %T/le_test.o -o %T/le_test.exe
+
+# Verify little-endian ELF header
+RUN: %readelf -h %T/le_test.exe | %filecheck --check-prefix=LE_HEADER %s
+CHECK-LE_HEADER: Data: 2's complement, little endian
+CHECK-LE_HEADER: Machine: MIPS R3000
+
+# Check byte order in data section (little-endian should be 78 56 34 12)
+RUN: %objdump -s -j .data %T/le_test.exe | %filecheck --check-prefix=LE_DATA %s
+CHECK-LE_DATA: 78563412
+
+# Test endianness mismatch error
+RUN: not %link -m elf32btsmip %T/le_test.o -o %T/mismatch.exe 2>&1 | %filecheck --check-prefix=MISMATCH %s
+CHECK-MISMATCH: error: endianness mismatch
+
+#END_TEST

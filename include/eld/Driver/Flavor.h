@@ -16,7 +16,8 @@ enum Flavor {
   AArch64, // AArch64
   RISCV32, // RISCV32
   RISCV64, // RISCV64
-  x86_64   // x86_64
+  x86_64,  // x86_64
+  Mips,    // MIPS
 };
 
 #endif

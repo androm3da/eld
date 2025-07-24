@@ -1,0 +1,2 @@
+# Sample MIPS test to verify basic functionality
+# RUN: echo "MIPS tests will go here"

@@ -1,0 +1,59 @@
+#---R_MIPS_HI16_LO16.test----------------------- Executable -----------------#
+#BEGIN_COMMENT
+# This test verifies R_MIPS_HI16/R_MIPS_LO16 paired relocation handling.
+# These relocations must be processed together for 32-bit address construction.
+# The HI16 relocation must be immediately followed by a LO16 relocation.
+#END_COMMENT
+#START_TEST
+
+# Create test source with HI16/LO16 relocation pair
+RUN: %mkdir -p %T/Inputs
+RUN: echo '.section .data' > %T/Inputs/hi16_lo16_test.s
+RUN: echo 'data_symbol:' >> %T/Inputs/hi16_lo16_test.s
+RUN: echo '.word 0xdeadbeef' >> %T/Inputs/hi16_lo16_test.s
+RUN: echo '.section .text' >> %T/Inputs/hi16_lo16_test.s
+RUN: echo '.globl _start' >> %T/Inputs/hi16_lo16_test.s
+RUN: echo '_start:' >> %T/Inputs/hi16_lo16_test.s
+RUN: echo '# Load 32-bit address using HI16/LO16 pair' >> %T/Inputs/hi16_lo16_test.s
+RUN: echo 'lui $t0, %hi(data_symbol)  # R_MIPS_HI16' >> %T/Inputs/hi16_lo16_test.s
+RUN: echo 'addiu $t0, $t0, %lo(data_symbol)  # R_MIPS_LO16' >> %T/Inputs/hi16_lo16_test.s
+RUN: echo 'lw $t1, 0($t0)' >> %T/Inputs/hi16_lo16_test.s
+
+# Test another HI16/LO16 pair for different symbol
+RUN: echo '.section .bss' >> %T/Inputs/hi16_lo16_test.s
+RUN: echo 'bss_symbol:' >> %T/Inputs/hi16_lo16_test.s
+RUN: echo '.space 4' >> %T/Inputs/hi16_lo16_test.s
+RUN: echo 'lui $t2, %hi(bss_symbol)  # R_MIPS_HI16' >> %T/Inputs/hi16_lo16_test.s
+RUN: echo 'addiu $t2, $t2, %lo(bss_symbol)  # R_MIPS_LO16' >> %T/Inputs/hi16_lo16_test.s
+
+# Assemble the test file
+RUN: %clang -target mips -c %T/Inputs/hi16_lo16_test.s -o %T/hi16_lo16.o
+
+# Verify input relocations are correct
+RUN: %readelf -r %T/hi16_lo16.o | %filecheck --check-prefix=INPUT_RELOCS %s
+CHECK-INPUT_RELOCS: R_MIPS_HI16
+CHECK-INPUT_RELOCS: R_MIPS_LO16
+CHECK-INPUT_RELOCS: R_MIPS_HI16
+CHECK-INPUT_RELOCS: R_MIPS_LO16
+
+# Link with MIPS linker - this should process the HI16/LO16 pairs correctly
+RUN: %link -m elf32btsmip %T/hi16_lo16.o -o %T/hi16_lo16.exe
+
+# Verify output binary is created
+RUN: %readelf -h %T/hi16_lo16.exe | %filecheck --check-prefix=HEADER %s
+CHECK-HEADER: ELF Header:
+CHECK-HEADER: Machine: MIPS R3000
+
+# Test error case: HI16 without matching LO16 (should fail)
+RUN: %mkdir -p %T/Error
+RUN: echo '.section .text' > %T/Error/orphan_hi16.s
+RUN: echo '.globl _start' >> %T/Error/orphan_hi16.s
+RUN: echo '_start:' >> %T/Error/orphan_hi16.s
+RUN: echo 'lui $t0, %hi(some_symbol)  # R_MIPS_HI16 without LO16' >> %T/Error/orphan_hi16.s
+RUN: echo 'nop' >> %T/Error/orphan_hi16.s
+
+RUN: %clang -target mips -c %T/Error/orphan_hi16.s -o %T/Error/orphan_hi16.o
+RUN: not %link -m elf32btsmip %T/Error/orphan_hi16.o -o %T/Error/orphan_hi16.exe 2>&1 | %filecheck --check-prefix=ERROR %s
+CHECK-ERROR: error: R_MIPS_HI16 relocation without matching R_MIPS_LO16
+
+#END_TEST

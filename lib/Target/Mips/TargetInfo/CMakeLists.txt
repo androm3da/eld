@@ -1,0 +1,2 @@
+llvm_add_library(ELDMipsTargetInfo STATIC MIPSTargetInfo.cpp)
+target_link_libraries(ELDMipsTargetInfo LLVMMipsAsmParser LLVMMipsCodeGen)

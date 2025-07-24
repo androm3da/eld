@@ -10,6 +10,7 @@
 #include "eld/Driver/ARMLinkDriver.h"
 #include "eld/Driver/GnuLdDriver.h"
 #include "eld/Driver/HexagonLinkDriver.h"
+#include "eld/Driver/MIPSLinkDriver.h"
 #include "eld/Driver/RISCVLinkDriver.h"
 #include "eld/Driver/x86_64LinkDriver.h"
 #include "eld/PluginAPI/DiagnosticEntry.h"
@@ -22,6 +23,15 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include <optional>
+
+// Force MIPS initialization to work around static linking issues
+#ifdef ELD_ENABLE_TARGET_MIPS
+extern "C" {
+void ELDInitializeMipsLDTargetInfo();
+void ELDInitializeMipsLDBackend();
+void ELDInitializeMipsEmulation();
+}
+#endif
 
 Driver::Driver(Flavor F, std::string Triple)
     : DiagEngine(new eld::DiagnosticEngine(shouldColorize())),
@@ -43,7 +53,8 @@ GnuLdDriver *Driver::getLinker() {
   case Flavor::AArch64:
   case Flavor::RISCV32:
   case Flavor::RISCV64:
-  case Flavor::x86_64: {
+  case Flavor::x86_64:
+  case Flavor::Mips: {
     LinkDriver = GnuLdDriver::Create(Config, m_Flavor, m_Triple);
     break;
   }
@@ -74,6 +85,13 @@ void Driver::InitTarget() {
   eld::InitializeAllLinkers();
   eld::InitializeAllEmulations();
 
+  // Force MIPS initialization to work around static linking issues
+#ifdef ELD_ENABLE_TARGET_MIPS
+  ELDInitializeMipsLDTargetInfo();
+  ELDInitializeMipsLDBackend();
+  ELDInitializeMipsEmulation();
+#endif
+
   for (auto it = eld::TargetRegistry::begin(); it != eld::TargetRegistry::end();
        ++it) {
     std::string TargetName = getStringFromTarget((*it)->Name);
@@ -95,6 +113,8 @@ std::string Driver::getStringFromTarget(llvm::StringRef Target) const {
       .CaseLower("riscv64", "riscv")
       .CaseLower("iu", "iu")
       .CaseLower("x86_64", "x86_64")
+      .CaseLower("mips", "mips")
+      .CaseLower("mipsel", "mips")
       .Default("");
 }
 
@@ -105,6 +125,7 @@ Flavor Driver::getFlavorFromTarget(llvm::StringRef Target) const {
       .CaseLower("aarch64", Flavor::AArch64)
       .CaseLower("riscv", Flavor::RISCV32)
       .CaseLower("x86_64", Flavor::x86_64)
+      .CaseLower("mips", Flavor::Mips)
       .Default(Invalid);
 }
 
@@ -188,6 +209,10 @@ Driver::getFlavorAndTripleFromLinkCommand(llvm::ArrayRef<const char *> Args) {
     if (x86_64LinkDriver::isValidEmulation(Emulation))
       F = Flavor::x86_64;
 #endif
+#if defined(ELD_ENABLE_TARGET_MIPS)
+    if (MIPSLinkDriver::isValidEmulation(Emulation))
+      F = Flavor::Mips;
+#endif
     if (F == Flavor::Invalid)
       return std::make_unique<eld::DiagnosticEntry>(
           eld::Diag::fatal_unsupported_emulation,
@@ -234,6 +259,7 @@ Driver::parseFlavorAndTripleFromProgramName(const char *argv0) {
           .Case("riscv-link", Flavor::RISCV32)
           .Case("riscv32-link", Flavor::RISCV32)
           .Case("riscv64-link", Flavor::RISCV64)
+          .Case("mips-link", Flavor::Mips)
           .Default(Invalid);
   // Try to get the Flavor from the triple.
   if (F == Invalid) {
@@ -247,7 +273,8 @@ Driver::parseFlavorAndTripleFromProgramName(const char *argv0) {
               .StartsWith("riscv", Flavor::RISCV32)
               .StartsWith("riscv32", Flavor::RISCV32)
               .StartsWith("riscv64", Flavor::RISCV64)
-              .StartsWith("x86", Flavor::x86_64);
+              .StartsWith("x86", Flavor::x86_64)
+              .StartsWith("mips", Flavor::Mips);
     }
   }
   return std::make_pair(F, Triple);

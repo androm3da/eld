@@ -1,0 +1,10 @@
+#---LinkDriverPrintHelp.test----------------------- Executable -----------------#
+#BEGIN_COMMENT
+# This test verifies that the MIPS linker driver can print help text.
+#END_COMMENT
+#START_TEST
+RUN: %link --help 2>&1 | %filecheck %s
+CHECK: ELD {{.*}} for MIPS
+CHECK: USAGE:
+CHECK: -m elf32btsmip
+#END_TEST

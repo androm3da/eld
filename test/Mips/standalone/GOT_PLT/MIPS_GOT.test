@@ -1,0 +1,53 @@
+#---MIPS_GOT.test------------------------------- Executable -----------------#
+#BEGIN_COMMENT
+# This test verifies MIPS Global Offset Table (GOT) functionality.
+# Tests R_MIPS_GOT16 and R_MIPS_CALL16 relocations for GOT access.
+#END_COMMENT
+#START_TEST
+
+# Create shared library source
+RUN: %mkdir -p %T/Inputs
+RUN: echo 'int shared_function(void) { return 42; }' > %T/Inputs/shared.c
+RUN: echo 'int shared_data = 123;' >> %T/Inputs/shared.c
+
+# Create main program that uses GOT relocations
+RUN: echo 'extern int shared_function(void);' > %T/Inputs/main.c
+RUN: echo 'extern int shared_data;' >> %T/Inputs/main.c
+RUN: echo 'int main() {' >> %T/Inputs/main.c
+RUN: echo '  int result = shared_function();' >> %T/Inputs/main.c
+RUN: echo '  return result + shared_data;' >> %T/Inputs/main.c
+RUN: echo '}' >> %T/Inputs/main.c
+
+# Compile shared library
+RUN: %clang -target mips -fPIC -c %T/Inputs/shared.c -o %T/shared.o
+RUN: %link -m elf32btsmip -shared %T/shared.o -o %T/libshared.so
+
+# Compile main program with GOT access
+RUN: %clang -target mips -fPIC -c %T/Inputs/main.c -o %T/main.o
+
+# Verify GOT relocations in object file
+RUN: %readelf -r %T/main.o | %filecheck --check-prefix=GOT_RELOCS %s
+CHECK-GOT_RELOCS: R_MIPS_GOT16
+CHECK-GOT_RELOCS: R_MIPS_CALL16
+
+# Link dynamic executable
+RUN: %link -m elf32btsmip %T/main.o %T/libshared.so -o %T/main.exe
+
+# Verify GOT section was created
+RUN: %readelf -S %T/main.exe | %filecheck --check-prefix=GOT_SECTION %s
+CHECK-GOT_SECTION: .got
+
+# Verify dynamic relocations for GOT
+RUN: %readelf -r %T/main.exe | %filecheck --check-prefix=DYN_RELOCS %s
+CHECK-DYN_RELOCS: .got
+
+# Test static linking (no GOT needed)
+RUN: %clang -target mips -c %T/Inputs/shared.c -o %T/shared_static.o
+RUN: %clang -target mips -c %T/Inputs/main.c -o %T/main_static.o
+RUN: %link -m elf32btsmip %T/main_static.o %T/shared_static.o -o %T/main_static.exe
+
+# Verify no GOT section in static executable
+RUN: %readelf -S %T/main_static.exe | %filecheck --check-prefix=NO_GOT %s --allow-empty
+CHECK-NO_GOT-NOT: .got
+
+#END_TEST

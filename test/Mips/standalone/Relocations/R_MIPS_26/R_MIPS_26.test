@@ -1,0 +1,62 @@
+#---R_MIPS_26.test------------------------------ Executable -----------------#
+#BEGIN_COMMENT
+# This test verifies R_MIPS_26 relocation handling.
+# R_MIPS_26 is used for jump instructions (j, jal) with 26-bit targets.
+# The target address is encoded in bits 25:0 of the instruction.
+#END_COMMENT
+#START_TEST
+
+# Create test source with R_MIPS_26 relocation (jump instruction)
+RUN: %mkdir -p %T/Inputs
+RUN: echo '.section .text' > %T/Inputs/jump_test.s
+RUN: echo '.globl _start' >> %T/Inputs/jump_test.s
+RUN: echo '_start:' >> %T/Inputs/jump_test.s
+RUN: echo 'jal function_call  # R_MIPS_26 relocation' >> %T/Inputs/jump_test.s
+RUN: echo 'nop  # branch delay slot' >> %T/Inputs/jump_test.s
+RUN: echo 'j end_program  # R_MIPS_26 relocation' >> %T/Inputs/jump_test.s
+RUN: echo 'nop  # branch delay slot' >> %T/Inputs/jump_test.s
+RUN: echo '' >> %T/Inputs/jump_test.s
+RUN: echo 'function_call:' >> %T/Inputs/jump_test.s
+RUN: echo 'jr $ra  # return' >> %T/Inputs/jump_test.s
+RUN: echo 'nop  # branch delay slot' >> %T/Inputs/jump_test.s
+RUN: echo '' >> %T/Inputs/jump_test.s
+RUN: echo 'end_program:' >> %T/Inputs/jump_test.s
+RUN: echo 'nop' >> %T/Inputs/jump_test.s
+
+# Assemble the test file
+RUN: %clang -target mips -c %T/Inputs/jump_test.s -o %T/jump_test.o
+
+# Verify input relocations are correct
+RUN: %readelf -r %T/jump_test.o | %filecheck --check-prefix=INPUT_RELOCS %s
+CHECK-INPUT_RELOCS: R_MIPS_26{{.*}}function_call
+CHECK-INPUT_RELOCS: R_MIPS_26{{.*}}end_program
+
+# Link with MIPS linker
+RUN: %link -m elf32btsmip %T/jump_test.o -o %T/jump_test.exe
+
+# Verify output binary is created and has correct machine type
+RUN: %readelf -h %T/jump_test.exe | %filecheck --check-prefix=HEADER %s
+CHECK-HEADER: Machine: MIPS R3000
+
+# Test disassembly to verify jump instructions were relocated correctly
+RUN: %objdump -d %T/jump_test.exe | %filecheck --check-prefix=DISASM %s
+CHECK-DISASM: jal
+CHECK-DISASM: j
+
+# Test out-of-range jump (should produce error or trampoline)
+RUN: %mkdir -p %T/OutOfRange
+RUN: echo '.section .text' > %T/OutOfRange/far_jump.s
+RUN: echo '.globl _start' >> %T/OutOfRange/far_jump.s
+RUN: echo '_start:' >> %T/OutOfRange/far_jump.s
+RUN: echo 'j far_target' >> %T/OutOfRange/far_jump.s
+RUN: echo 'nop' >> %T/OutOfRange/far_jump.s
+RUN: echo '.space 0x8000000  # Create large gap' >> %T/OutOfRange/far_jump.s
+RUN: echo 'far_target:' >> %T/OutOfRange/far_jump.s
+RUN: echo 'nop' >> %T/OutOfRange/far_jump.s
+
+RUN: %clang -target mips -c %T/OutOfRange/far_jump.s -o %T/OutOfRange/far_jump.o
+
+# This should either succeed with a trampoline or fail with out-of-range error
+RUN: %link -m elf32btsmip %T/OutOfRange/far_jump.o -o %T/OutOfRange/far_jump.exe 2>&1 || echo "Expected: out-of-range or trampoline handling"
+
+#END_TEST

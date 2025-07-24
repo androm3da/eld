@@ -20,6 +20,9 @@
 #ifdef ELD_ENABLE_TARGET_X86_64
 #include "eld/Driver/x86_64LinkDriver.h"
 #endif
+#ifdef ELD_ENABLE_TARGET_MIPS
+#include "eld/Driver/MIPSLinkDriver.h"
+#endif
 #include "eld/Config/LinkerConfig.h"
 #include "eld/Input/JustSymbolsAction.h"
 #include "eld/Input/ZOption.h"
@@ -96,6 +99,10 @@ GnuLdDriver *GnuLdDriver::Create(LinkerConfig &C, Flavor F,
 #ifdef ELD_ENABLE_TARGET_X86_64
   case Flavor::x86_64:
     return x86_64LinkDriver::Create(C, F, Triple);
+#endif
+#ifdef ELD_ENABLE_TARGET_MIPS
+  case Flavor::Mips:
+    return MIPSLinkDriver::Create(C, F, Triple);
 #endif
   default:
     break;
@@ -1698,6 +1705,8 @@ std::string GnuLdDriver::getFlavorName() const {
     return "ARM";
   case Flavor::Hexagon:
     return "Hexagon";
+  case Flavor::Mips:
+    return "Mips";
   case Flavor::RISCV32:
     return "RISCV32";
   case Flavor::RISCV64:
@@ -1817,6 +1826,27 @@ template bool GnuLdDriver::overrideOptions<OPT_x86_64LinkOptTable>(
 template bool GnuLdDriver::doLink<OPT_x86_64LinkOptTable>(
     llvm::opt::InputArgList &Args, std::vector<eld::InputAction *> &actions);
 template bool GnuLdDriver::handleReproduce<OPT_x86_64LinkOptTable>(
+    llvm::opt::InputArgList &Args, std::vector<eld::InputAction *> &actions,
+    bool);
+#endif
+
+#ifdef ELD_ENABLE_TARGET_MIPS
+// MIPS -- force instantiate
+template bool GnuLdDriver::checkOptions<OPT_MIPSLinkOptTable>(
+    llvm::opt::InputArgList &args) const;
+template bool GnuLdDriver::processOptions<OPT_MIPSLinkOptTable>(
+    llvm::opt::InputArgList &args);
+template bool GnuLdDriver::processLLVMOptions<OPT_MIPSLinkOptTable>(
+    llvm::opt::InputArgList &args) const;
+template bool GnuLdDriver::processTargetOptions<OPT_MIPSLinkOptTable>(
+    llvm::opt::InputArgList &args);
+template bool GnuLdDriver::createInputActions<OPT_MIPSLinkOptTable>(
+    llvm::opt::InputArgList &Args, std::vector<eld::InputAction *> &actions);
+template bool GnuLdDriver::overrideOptions<OPT_MIPSLinkOptTable>(
+    llvm::opt::InputArgList &args);
+template bool GnuLdDriver::doLink<OPT_MIPSLinkOptTable>(
+    llvm::opt::InputArgList &Args, std::vector<eld::InputAction *> &actions);
+template bool GnuLdDriver::handleReproduce<OPT_MIPSLinkOptTable>(
     llvm::opt::InputArgList &Args, std::vector<eld::InputAction *> &actions,
     bool);
 #endif

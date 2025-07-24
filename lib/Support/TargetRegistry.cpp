@@ -14,6 +14,7 @@
 //===- TargetRegistry.cpp -------------------------------------------------===//
 //===----------------------------------------------------------------------===//
 #include "eld/Support/TargetRegistry.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace eld;
 

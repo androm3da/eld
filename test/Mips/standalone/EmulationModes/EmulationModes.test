@@ -1,0 +1,17 @@
+#---EmulationModes.test---------------------------- Executable -----------------#
+#BEGIN_COMMENT
+# This test verifies MIPS emulation modes (big-endian and little-endian).
+#END_COMMENT
+#START_TEST
+# Test big-endian MIPS emulation
+RUN: %link -m elf32btsmip --print-emulation 2>&1 | %filecheck --check-prefix=MIPS_BE %s
+CHECK-MIPS_BE: elf32btsmip
+
+# Test little-endian MIPS emulation
+RUN: %link -m elf32ltsmip --print-emulation 2>&1 | %filecheck --check-prefix=MIPS_LE %s
+CHECK-MIPS_LE: elf32ltsmip
+
+# Test invalid emulation
+RUN: not %link -m invalid_mips_emulation 2>&1 | %filecheck --check-prefix=INVALID %s
+CHECK-INVALID: error: unknown emulation: invalid_mips_emulation
+#END_TEST

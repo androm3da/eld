@@ -20,6 +20,10 @@ if(ELD_ENABLE_TARGET_X86_64)
   set(DRIVER_SOURCES ${DRIVER_SOURCES} x86_64LinkDriver.cpp)
 endif()
 
+if(ELD_ENABLE_TARGET_MIPS)
+  set(DRIVER_SOURCES ${DRIVER_SOURCES} MIPSLinkDriver.cpp)
+endif()
+
 set(SOURCES
     Diagnostics.cpp
     DiagnosticBuilder.cpp
@@ -43,6 +47,7 @@ set(PLUGIN_ELD_DEPENDENCIES
     GnuDriverOptions
     HexagonDriverOptions
     intrinsics_gen
+    MIPSDriverOptions
     RISCVDriverOptions
     x86_64DriverOptions
     LLVMSupport

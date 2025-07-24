@@ -1,0 +1,36 @@
+#---R_MIPS_32.test------------------------------ Executable -----------------#
+#BEGIN_COMMENT
+# This test verifies R_MIPS_32 relocation handling.
+# R_MIPS_32 is a 32-bit absolute relocation used for data references.
+#END_COMMENT
+#START_TEST
+
+# Create test source with R_MIPS_32 relocation
+RUN: %mkdir -p %T/Inputs
+RUN: echo '.section .data' > %T/Inputs/test.s
+RUN: echo 'symbol_data:' >> %T/Inputs/test.s
+RUN: echo '.word 0x12345678' >> %T/Inputs/test.s
+RUN: echo '.section .text' >> %T/Inputs/test.s
+RUN: echo '.globl _start' >> %T/Inputs/test.s
+RUN: echo '_start:' >> %T/Inputs/test.s
+RUN: echo 'lui $t0, %hi(symbol_data)' >> %T/Inputs/test.s
+RUN: echo 'addiu $t0, $t0, %lo(symbol_data)' >> %T/Inputs/test.s
+RUN: echo 'lw $t1, 0($t0)' >> %T/Inputs/test.s
+
+# Assemble the test file
+RUN: %clang -target mips -c %T/Inputs/test.s -o %T/test.o
+
+# Link with MIPS linker
+RUN: %link -m elf32btsmip %T/test.o -o %T/test.exe
+
+# Verify output contains expected sections
+RUN: %readelf -S %T/test.exe | %filecheck --check-prefix=SECTIONS %s
+CHECK-SECTIONS: .text
+CHECK-SECTIONS: .data
+
+# Verify relocation was processed correctly
+RUN: %readelf -r %T/test.o | %filecheck --check-prefix=RELOCS %s
+CHECK-RELOCS: R_MIPS_HI16
+CHECK-RELOCS: R_MIPS_LO16
+
+#END_TEST

@@ -1,0 +1,52 @@
+#---HelloWorld.test----------------------------- Executable -----------------#
+#BEGIN_COMMENT
+# This test verifies basic MIPS linking functionality with a simple program.
+#END_COMMENT
+#START_TEST
+
+# Create simple hello world program
+RUN: %mkdir -p %T/Inputs
+RUN: echo '#include <stdio.h>' > %T/Inputs/hello.c
+RUN: echo 'int main() {' >> %T/Inputs/hello.c
+RUN: echo '  printf("Hello, MIPS World!\\n");' >> %T/Inputs/hello.c
+RUN: echo '  return 0;' >> %T/Inputs/hello.c
+RUN: echo '}' >> %T/Inputs/hello.c
+
+# Compile to object file
+RUN: %clang -target mips -c %T/Inputs/hello.c -o %T/hello.o
+
+# Verify object file has correct machine type
+RUN: %readelf -h %T/hello.o | %filecheck --check-prefix=OBJ_HEADER %s
+CHECK-OBJ_HEADER: Machine: MIPS R3000
+
+# Link to executable
+RUN: %link -m elf32btsmip %T/hello.o -o %T/hello.exe
+
+# Verify executable has correct format
+RUN: %readelf -h %T/hello.exe | %filecheck --check-prefix=EXE_HEADER %s
+CHECK-EXE_HEADER: ELF Header:
+CHECK-EXE_HEADER: Machine: MIPS R3000
+CHECK-EXE_HEADER: Type: EXEC
+
+# Verify sections are present
+RUN: %readelf -S %T/hello.exe | %filecheck --check-prefix=SECTIONS %s
+CHECK-SECTIONS: .text
+CHECK-SECTIONS: .data
+CHECK-SECTIONS: .bss
+
+# Test multiple object files
+RUN: echo 'int add(int a, int b) { return a + b; }' > %T/Inputs/math.c
+RUN: echo 'extern int add(int, int);' > %T/Inputs/main.c
+RUN: echo 'int main() { return add(1, 2); }' >> %T/Inputs/main.c
+
+RUN: %clang -target mips -c %T/Inputs/math.c -o %T/math.o
+RUN: %clang -target mips -c %T/Inputs/main.c -o %T/main.o
+
+# Link multiple objects
+RUN: %link -m elf32btsmip %T/main.o %T/math.o -o %T/multi.exe
+
+# Verify linked executable
+RUN: %readelf -h %T/multi.exe | %filecheck --check-prefix=MULTI_HEADER %s
+CHECK-MULTI_HEADER: Machine: MIPS R3000
+
+#END_TEST

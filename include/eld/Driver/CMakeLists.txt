@@ -17,3 +17,7 @@ add_public_tablegen_target(RISCVDriverOptions)
 set(LLVM_TARGET_DEFINITIONS x86_64LinkerOptions.td)
 tablegen(LLVM x86_64LinkerOptions.inc -gen-opt-parser-defs)
 add_public_tablegen_target(x86_64DriverOptions)
+
+set(LLVM_TARGET_DEFINITIONS MIPSLinkerOptions.td)
+tablegen(LLVM MIPSLinkerOptions.inc -gen-opt-parser-defs)
+add_public_tablegen_target(MIPSDriverOptions)
